@@ -1,75 +1,89 @@
-# Projeto 14 — exercícios do tutorial
+# Tutorial - projeto 14
 
-Implementações separadas dos 12 exercícios da seção 14. Exercícios que usam
-Redis precisam de um servidor em `localhost:6379`. Para instalar as
-dependências usadas pelos exercícios:
+O projeto contém os 12 exercícios propostos na seção 14 do Tutorial-redis.
+Requer Node.js, Redis em `localhost:6379` e, para o exercício 2, `redis-cli`
+instalado.
 
-```cmd
+## 1. Prepare o projeto
+
+Inicie o Redis. Se ainda não tem um servidor local, pode usar Docker:
+
+```powershell
+docker run --name redis-projeto14 -p 6379:6379 -d redis:8
+```
+
+Entre na pasta `projeto-14` e instale as dependências:
+
+```powershell
 npm install
 ```
 
-## Windows: CMD e PowerShell
+## 2. Execute os exercícios
 
-Os comandos deste README estão escritos para o **CMD** (`cmd.exe`). No CMD,
-`^` continua um comando em várias linhas; no PowerShell use crases (`` ` ``) ou
-escreva o comando em uma linha. Os exercícios de Redis podem ser executados
-diretamente no CMD; `redis-cli` precisa estar instalado e acessível pelo `PATH`.
+Rode os comandos a partir da pasta `projeto-14`.
 
-O exercício 2 inclui `02-atendimento.cmd`, que executa a sessão Redis inteira:
+Exercícios 1–5:
 
-```cmd
-cd /d C:\caminho\para\Atividade-redis\projeto-14
-exercicios\02-atendimento.cmd
+```powershell
+node .\exercicios\01-fila-circular.js
+.\exercicios\02-atendimento.cmd
+node .\exercicios\03-paralelismo.js
+node .\exercicios\04-agendador-lua.js
+node .\exercicios\05-retentativa-exponencial.js
 ```
 
-## Como rodar os exercícios
+Exercício 6: abra dois terminais; no primeiro, inicie a API e, no segundo,
+crie uma tarefa de exemplo:
 
-Execute os exemplos a partir da pasta `projeto-14`:
-
-```cmd
-node exercicios\01-fila-circular.js
-exercicios\02-atendimento.cmd
-node exercicios\03-paralelismo.js
-node exercicios\04-agendador-lua.js
-node exercicios\05-retentativa-exponencial.js
+```powershell
+node .\exercicios\06-api-falhas.js
+node .\exercicios\06-semeia-falha.js
 ```
 
-O exercício 2 limpa a chave `fila:atendimento` antes de cada demonstração.
-Exercícios 3–5 usam chaves com prefixo `tutorial14:` e requerem Redis.
+Consulte `http://localhost:3006/falhas` ou reenvie as falhas com:
 
-Para o exercício 6, em um terminal execute `node exercicios\06-api-falhas.js`.
-Em outro terminal, rode `node exercicios\06-semeia-falha.js` para criar um
-exemplo; consulte `http://localhost:3006/falhas` ou faça POST para
-`http://localhost:3006/falhas/reprocessar` com
-`curl.exe -X POST http://localhost:3006/falhas/reprocessar`. As chaves de exemplo são
-`tutorial14:emails` e `tutorial14:emails:falhas`.
-
-Para o exercício 7, abra dois terminais e execute
-`node exercicios\07-prioridade-api.js` e
-`node exercicios\07-prioridade-worker.js`. A API aceita POST em
-`http://localhost:3007/emails`, com `para`, `assunto` e `prioridade` (`alta` ou
-`normal`). Como no exercício, o worker retira a tarefa da lista sem lista de
-processamento; uma queda durante o trabalho pode perdê-la. Exemplo no CMD:
-
-```cmd
-curl.exe -X POST http://localhost:3007/emails -H "Content-Type: application/json" -d "{\"para\":\"ana@example.com\",\"assunto\":\"Teste\",\"prioridade\":\"alta\"}"
+```powershell
+Invoke-RestMethod -Method Post -Uri http://localhost:3006/falhas/reprocessar
 ```
 
-Para o exercício 8, execute `node exercicios\08-stream-worker.js email email-1`
-e `node exercicios\08-stream-worker.js auditoria audit-1` em terminais separados,
-depois rode `node exercicios\08-stream-produtor.js`. Cada grupo recebe todas as
-mensagens; execute dois workers com o mesmo grupo para ver a divisão dentro
-dele.
+Exercício 7: em dois terminais, inicie a API e o worker:
 
-Para o exercício 9, execute `node exercicios\09-bullmq-worker.js` e
-`node exercicios\09-bullmq-api.js` em dois terminais. A API recebe POST
-`http://localhost:3009/emails`; consulte falhas em
-`http://localhost:3009/falhas`. O endereço `@invalido.com` simula falhas. Exemplo:
-
-```cmd
-curl.exe -X POST http://localhost:3009/emails -H "Content-Type: application/json" -d "{\"para\":\"x@invalido.com\",\"assunto\":\"Teste\"}"
+```powershell
+node .\exercicios\07-prioridade-api.js
+node .\exercicios\07-prioridade-worker.js
 ```
 
-Os exercícios 10, 11 e 12 estendem o projeto de PDFs e compartilham o mesmo
-código em `exercicios\pdf-projeto`. Instruções e comandos para CMD estão no
-README dessa pasta.
+Envie uma tarefa em outro terminal:
+
+```powershell
+$body = @{ para = 'ana@example.com'; assunto = 'Teste'; prioridade = 'alta' } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri http://localhost:3007/emails -ContentType 'application/json' -Body $body
+```
+
+Exercício 8: inicie um worker para cada grupo e depois publique pedidos:
+
+```powershell
+node .\exercicios\08-stream-worker.js email email-1
+node .\exercicios\08-stream-worker.js auditoria audit-1
+node .\exercicios\08-stream-produtor.js
+```
+
+Exercício 9: em dois terminais, inicie o worker e a API:
+
+```powershell
+node .\exercicios\09-bullmq-worker.js
+node .\exercicios\09-bullmq-api.js
+```
+
+Envie um e-mail de teste por `http://localhost:3009/emails`. Consulte falhas em
+`http://localhost:3009/falhas`. O endereço `x@invalido.com` simula uma falha.
+
+Exercícios 10–12: siga as instruções de execução em
+[pdf-projeto](./exercicios/pdf-projeto/README.md).
+
+## Observação sobre comandos
+
+Os exemplos acima são para PowerShell no Windows. O exercício 2 é um arquivo
+`.cmd` e pode ser iniciado pelo PowerShell com
+`.\exercicios\02-atendimento.cmd`. Para os comandos HTTP, use `Invoke-RestMethod`
+como mostrado, ou adapte o JSON se preferir `curl.exe`.
