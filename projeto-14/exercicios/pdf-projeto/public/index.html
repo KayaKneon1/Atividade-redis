@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fila de PDFs</title>
+</head>
+<body>
+  <h1>Extração de texto de PDFs</h1>
+  <p>Envie até 10 PDFs de até 20 MB cada. O progresso chega por SSE.</p>
+  <form id="formulario">
+    <input type="file" name="arquivos" accept="application/pdf" multiple required>
+    <button>Enviar para a fila</button>
+  </form>
+  <p id="mensagem"></p>
+  <ul id="jobs"></ul>
+  <script>
+    const formulario = document.querySelector('#formulario');
+    const mensagem = document.querySelector('#mensagem');
+    const lista = document.querySelector('#jobs');
+    const jobs = new Map();
+    const eventos = new EventSource('/eventos');
+
+    function atualizar(job) {
+      let item = jobs.get(job.id);
+      if (!item) {
+        item = document.createElement('li');
+        item.dataset.nome = job.nome;
+        jobs.set(job.id, item);
+        lista.prepend(item);
+      }
+      item.dataset.nome = job.nome;
+      item.textContent = `${job.nome}: ${job.status} (${job.pagina ?? 0}/${job.paginas ?? '?'})`;
+      if (job.status === 'concluido') {
+        const link = document.createElement('a');
+        link.href = `/pdfs/${encodeURIComponent(job.id)}/texto`;
+        link.textContent = ' — abrir texto';
+        item.append(link);
+      }
+    }
+
+    eventos.onmessage = ({ data }) => {
+      const evento = JSON.parse(data);
+      const anterior = jobs.get(evento.id);
+      if (anterior) {
+        const status = evento.tipo === 'progresso' ? 'processando' :
+          evento.tipo === 'na_fila' ? 'na_fila' :
+          evento.tipo === 'cancelado' ? 'cancelado' :
+          evento.tipo === 'erro' ? 'erro' :
+          evento.tipo === 'concluido' ? 'concluido' : 'processando';
+        atualizar({
+          ...evento,
+          status,
+          pagina: evento.pagina ?? (status === 'concluido' ? evento.paginas : undefined),
+          nome: evento.nome ?? anterior.dataset.nome,
+        });
+      } else if (evento.tipo === 'concluido' || evento.tipo === 'erro') {
+        mensagem.textContent = `${evento.nome}: ${evento.tipo}`;
+      }
+    };
+
+    formulario.addEventListener('submit', async (evento) => {
+      evento.preventDefault();
+      const resposta = await fetch('/pdfs', { method: 'POST', body: new FormData(formulario) });
+      const dados = await resposta.json();
+      if (!resposta.ok) {
+        mensagem.textContent = dados.erro;
+        return;
+      }
+      mensagem.textContent = `${dados.length} arquivo(s) enviado(s).`;
+      for (const job of dados) atualizar(job);
+      for (const job of dados) {
+        const estado = await fetch(`/pdfs/${encodeURIComponent(job.id)}`).then((r) => r.json());
+        atualizar(estado);
+      }
+      formulario.reset();
+    });
+  </script>
+</body>
+</html>
