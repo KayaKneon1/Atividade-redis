@@ -1,8 +1,7 @@
 import { createClient } from 'redis';
-import { randomUUID } from 'node:crypto';
 
-const client = createClient({ url: process.env.REDIS_URL ?? 'redis://localhost:6379' });
-client.on('error', (erro) => console.error('Erro no Redis:', erro.message));
+const client = createClient();
+client.on('error', console.error);
 await client.connect();
 
 const script = `
@@ -14,19 +13,17 @@ for _, item in ipairs(itens) do
 end
 return #itens
 `;
-const prefixo = `tutorial14:${randomUUID()}`;
-const agendadas = `${prefixo}:agendadas`;
-const fila = `${prefixo}:fila`;
 
-try {
-  const tarefa = JSON.stringify({ id: Date.now(), assunto: 'Tarefa vencida' });
-  await client.zAdd(agendadas, { score: Date.now() - 1, value: tarefa });
-  const movidas = await client.eval(script, {
-    keys: [agendadas, fila],
-    arguments: [String(Date.now())],
-  });
-  console.log({ movidas, fila: await client.lRange(fila, 0, -1) });
-} finally {
-  await client.del([agendadas, fila]);
-  await client.close();
-}
+const agendadas = 'tutorial14:agendadas';
+const fila = 'tutorial14:fila';
+const tarefa = JSON.stringify({ assunto: 'Tarefa vencida' });
+
+await client.del([agendadas, fila]);
+await client.zAdd(agendadas, { score: Date.now() - 1, value: tarefa });
+const movidas = await client.eval(script, {
+  keys: [agendadas, fila],
+  arguments: [String(Date.now())],
+});
+console.log('Tarefas movidas:', movidas);
+console.log('Fila:', await client.lRange(fila, 0, -1));
+await client.close();

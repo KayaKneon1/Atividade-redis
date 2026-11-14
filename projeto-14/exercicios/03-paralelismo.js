@@ -1,38 +1,37 @@
 import { createClient } from 'redis';
 
-const url = process.env.REDIS_URL ?? 'redis://localhost:6379';
 const fila = 'tutorial14:paralelismo';
-const quantidade = 100;
-const atrasoMs = 100;
+const tarefas = 100;
+const atraso = 100;
+const resultados = [];
 
-async function medir(workers) {
-  const produtor = createClient({ url });
-  produtor.on('error', (erro) => console.error('Erro no Redis:', erro.message));
-  await produtor.connect();
-  await produtor.del(fila);
-  await produtor.rPush(fila, Array.from({ length: quantidade }, (_, i) => String(i)));
-  const consumidores = await Promise.all(Array.from({ length: workers }, async () => {
-    const client = produtor.duplicate();
-    client.on('error', (erro) => console.error('Erro no Redis:', erro.message));
-    await client.connect();
-    return client;
-  }));
-  let processadas = 0;
-  const inicio = performance.now();
-  await Promise.all(consumidores.map(async (client) => {
-    while (true) {
-      const item = await client.brPop(fila, 1);
-      if (!item) break;
-      await new Promise((resolve) => setTimeout(resolve, atrasoMs));
-      processadas++;
+for (const quantidadeWorkers of [1, 2, 4]) {
+  const client = createClient();
+  client.on('error', console.error);
+  await client.connect();
+
+  await client.del(fila);
+  for (let i = 0; i < tarefas; i++) await client.lPush(fila, String(i));
+
+  const workers = [];
+  for (let i = 0; i < quantidadeWorkers; i++) {
+    const worker = client.duplicate();
+    worker.on('error', console.error);
+    await worker.connect();
+    workers.push(worker);
+  }
+
+  const inicio = Date.now();
+  await Promise.all(workers.map(async (worker) => {
+    let item;
+    while ((item = await worker.rPop(fila))) {
+      await new Promise((resolve) => setTimeout(resolve, atraso));
     }
   }));
-  const duracao = performance.now() - inicio;
-  await Promise.all(consumidores.map((client) => client.close()));
-  await produtor.close();
-  return { workers, tarefas: processadas, 'tempo (s)': Number((duracao / 1000).toFixed(2)) };
+  resultados.push({ workers: quantidadeWorkers, segundos: ((Date.now() - inicio) / 1000).toFixed(1) });
+
+  for (const worker of workers) await worker.close();
+  await client.close();
 }
 
-const resultados = [];
-for (const workers of [1, 2, 4]) resultados.push(await medir(workers));
 console.table(resultados);
